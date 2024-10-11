@@ -1,3 +1,21 @@
+
+
+<!-- Instalaçao do picker -->
+
+
+<!-- npm install react-native-vector-icons
+
+npx pod-install ios -->
+
+<!-- npm install react-native-elements react-native-vector-icons -->
+
+<!-- npm install react-native-vector-icons -->
+
+<!-- npm install react-native-sweet-alert -->
+<!-- npm install sweetalert2 -->
+
+
+
 # Welcome to your Expo app 👋
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
