@@ -14,6 +14,7 @@ npx pod-install ios -->
 <!-- npm install react-native-sweet-alert -->
 <!-- npm install sweetalert2 -->
 
+<!-- npm install react-native-dialog -->
 
 
 # Welcome to your Expo app 👋

@@ -1,75 +1,79 @@
-import { Text, View, TouchableOpacity, StyleSheet, TextInput, Image, Alert } from "react-native";
-import { router } from "expo-router";
-import { useState } from "react";
-import axios from 'axios';
+import React, { useState } from "react";
+import { Text, View, TouchableOpacity, StyleSheet, TextInput, Image, Modal, Button } from "react-native";
+import { useRouter } from "expo-router";  
+import UsuarioService from "./service/ususarioService"; 
+import { useUser } from "./context/userContext";
 
 export default function Cadastro() {
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalMessage, setModalMessage] = useState("");
+  const [modalType, setModalType] = useState<"success" | "error">("success");
 
-  // Função para cadastrar um novo usuário
+  const usuario_service = new UsuarioService();
+  const router = useRouter();
+  const { setUser } = useUser();
+
+  const showModal = (message: string, type: "success" | "error") => {
+    setModalMessage(message);
+    setModalType(type);
+    setModalVisible(true);
+  };
+
   const cadastrar = async () => {
-    if (senha !== confirmarSenha) {
-      Alert.alert("Erro", "As senhas não coincidem.");
-      return;
+    if (!nome || !email || !senha || !confirmarSenha) {
+        showModal("Todos os campos são obrigatórios.", "error");
+        return;
     }
 
-    // Bloco try/catch atualizado
-    try {
-      const response = await axios.post('http://ggustac-002-site2.htempurl.com/api/Usuario', {
-        nome,
-        email,
-        senha
-      });
+    if (senha !== confirmarSenha) {
+        showModal("As senhas não coincidem.", "error");
+        return;
+    }
 
-      // Verifique se o status da resposta está entre 200 e 299
-      if (response.status >= 200 && response.status < 300) {
-        Alert.alert("Sucesso", "Conta criada com sucesso!");
-        router.push('/'); // Redireciona para a tela de login
-      } else {
-        Alert.alert("Erro", "Não foi possível criar a conta.");
-      }
-    } catch (error: unknown) {
-      if (axios.isAxiosError(error)) {
-        // Caso o erro seja do axios, podemos acessar suas propriedades
-        if (error.response && error.response.status === 409) {
-          Alert.alert("Erro", "Já existe um usuário com este email.");
+    const novoUsuario = { nome, email, senha };
+
+    try {
+        const response = await usuario_service.salvar(novoUsuario);
+
+        if (response && response.status >= 200 && response.status < 300) {
+            showModal("Conta criada com sucesso!", "success");
+            setUser({ nomeUsuario: nome, email: email, logado: true });
+            router.push('/'); // Redireciona para a tela de login
         } else {
-          Alert.alert("Erro", "Erro ao se conectar à API.");
+            showModal("Não foi possível criar a conta.", "error");
         }
-      } else {
-        // Tratamento de erro genérico
-        Alert.alert("Erro", "Ocorreu um erro inesperado.");
-      }
+    } catch (error: any) {
+        if (error.response && error.response.status === 400 && error.response.data) {
+            showModal(error.response.data, "error");
+        } else if (error.response && error.response.status === 409) {
+            showModal("Já existe um usuário com este email.", "error");
+        } else {
+            showModal("Erro ao se conectar à API.", "error");
+        }
     }
   };
 
   return (
     <View style={styles.container}>
-      {/* Logo */}
       <Image source={require('../assets/party-manager-logo.png')} style={styles.logo} />
-
       <Text style={styles.title}>Crie sua conta</Text>
-
-      {/* Campo de nome */}
       <TextInput
         style={styles.input}
         placeholder="Digite seu nome"
         value={nome}
         onChangeText={setNome}
       />
-
-      {/* Campo de email */}
       <TextInput
         style={styles.input}
         placeholder="Digite seu e-mail"
         value={email}
         onChangeText={setEmail}
+        keyboardType="email-address"
       />
-
-      {/* Campo de senha */}
       <TextInput
         style={styles.input}
         placeholder="Digite sua senha"
@@ -77,8 +81,6 @@ export default function Cadastro() {
         value={senha}
         onChangeText={setSenha}
       />
-
-      {/* Campo de confirmação de senha */}
       <TextInput
         style={styles.input}
         placeholder="Confirme sua senha"
@@ -86,16 +88,29 @@ export default function Cadastro() {
         value={confirmarSenha}
         onChangeText={setConfirmarSenha}
       />
-
-      {/* Botão de Cadastro */}
       <TouchableOpacity style={styles.registerButton} onPress={cadastrar}>
         <Text style={styles.registerButtonText}>Cadastrar</Text>
       </TouchableOpacity>
-
-      {/* Botão para voltar ao login */}
       <TouchableOpacity style={styles.backButton} onPress={() => router.push('/')}>
         <Text style={styles.backButtonText}>Voltar ao login</Text>
       </TouchableOpacity>
+
+      {/* Modal para mensagens */}
+      <Modal
+        transparent={true}
+        visible={modalVisible}
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={[styles.modalMessage, modalType === "success" ? styles.successText : styles.errorText]}>
+              {modalMessage}
+            </Text>
+            <Button title="Fechar" onPress={() => setModalVisible(false)} />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -149,5 +164,29 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 18,
     color: '#fff',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  modalContent: {
+    width: '80%',
+    padding: 20,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  modalMessage: {
+    fontSize: 18,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  successText: {
+    color: "#4CAF50",
+  },
+  errorText: {
+    color: "#F44336",
   }
 });

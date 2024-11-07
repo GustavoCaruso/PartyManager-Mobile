@@ -1,94 +1,95 @@
 import React, { useState, useEffect } from "react";
-import { Text, View, TouchableOpacity, StyleSheet, TextInput, ScrollView, Alert } from "react-native";
+import { Text, View, TouchableOpacity, StyleSheet, TextInput, ScrollView, Alert, Platform, Modal, Button } from "react-native";
 import { Picker } from '@react-native-picker/picker';
-import axios from 'axios';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import axios from "axios";
+import { useRouter } from "expo-router";
+import { useUser } from "../context/userContext";
 
-export default function CriarEventos() {
+const BASE_URL = "http://ggustac-002-site2.htempurl.com/api";
+
+interface TipoEvento {
+  id: number;
+  nome: string;
+}
+
+interface ItemCalculado {
+  itemNome: string;
+  quantidade: number;
+}
+
+export default function CriarEvento() {
+  const { user } = useUser();
+  const router = useRouter();
   const [nome, setNome] = useState('');
   const [localidade, setLocalidade] = useState('');
+  const [data, setData] = useState(new Date());
   const [numeroAdultos, setNumeroAdultos] = useState('');
   const [numeroCriancas, setNumeroCriancas] = useState('');
-  const [tipoEvento, setTipoEvento] = useState('');
-  const [tiposEvento, setTiposEvento] = useState([]);
-  const [itensEvento, setItensEvento] = useState([]);
-  const [resumoEvento, setResumoEvento] = useState(null); // Armazena o resumo do evento
-  const [loadingTiposEvento, setLoadingTiposEvento] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const idUsuario = 1; // Substitua com o idUsuario correto
+  const [tipoEvento, setTipoEvento] = useState<number | string>('');
+  const [tiposEvento, setTiposEvento] = useState<TipoEvento[]>([]);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [itensCalculados, setItensCalculados] = useState<ItemCalculado[]>([]);
+  
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalMessage, setModalMessage] = useState("");
 
-  // Função para buscar os tipos de evento
+  const idUsuario = user?.id || null;
+
   useEffect(() => {
     const fetchTiposEvento = async () => {
       try {
-        const response = await axios.get('http://ggustac-002-site2.htempurl.com/api/tipoevento');
+        const response = await axios.get<TipoEvento[]>(`${BASE_URL}/TipoEvento`);
         setTiposEvento(response.data);
       } catch (error) {
-        Alert.alert('Erro', 'Não foi possível carregar os tipos de evento.');
-      } finally {
-        setLoadingTiposEvento(false);
+        showAlertModal("Não foi possível carregar os tipos de evento.");
       }
     };
 
     fetchTiposEvento();
   }, []);
 
-  // Função para buscar os itens de um tipo de evento após a seleção
-  const fetchItensPorTipoEvento = async (idTipoEvento) => {
-    try {
-      const response = await axios.get(`http://ggustac-002-site2.htempurl.com/api/evento/${idTipoEvento}/itens`);
-      setItensEvento(response.data);
-    } catch (error) {
-      Alert.alert('Erro', 'Não foi possível carregar os itens deste tipo de evento.');
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setData(selectedDate);
     }
   };
 
-  // Função chamada ao selecionar um tipo de evento
-  const handleTipoEventoChange = (itemValue) => {
-    setTipoEvento(itemValue);
-    fetchItensPorTipoEvento(itemValue); // Busca os itens ao selecionar um tipo de evento
+  const showAlertModal = (message: string) => {
+    setModalMessage(message);
+    setModalVisible(true);
   };
 
-  // Função para criar o evento e exibir o resumo
   const handleCreateEvento = async () => {
-    if (!nome || !localidade || !numeroAdultos || !numeroCriancas || !tipoEvento) {
-      Alert.alert('Erro', 'Por favor, preencha todos os campos.');
+    if (!nome || !localidade || !numeroAdultos || !numeroCriancas || !tipoEvento || !idUsuario) {
+      showAlertModal("Por favor, preencha todos os campos obrigatórios.");
       return;
     }
 
+    const formattedData = data.toISOString();
+
     const eventoData = {
+      id: 0,
       nome,
       localidade,
+      data: formattedData,
       numeroAdultos: parseInt(numeroAdultos, 10),
       numeroCriancas: parseInt(numeroCriancas, 10),
-      idTipoEvento: tipoEvento,
+      idTipoEvento: parseInt(tipoEvento as string, 10),
       idUsuario,
-      data: new Date().toISOString() // Data atual
     };
 
     try {
-      setLoading(true);
-      await axios.post('http://ggustac-002-site2.htempurl.com/api/evento', eventoData);
-      
-      // Calcular a quantidade total de itens (adultos + crianças)
-      const totalPessoas = parseInt(numeroAdultos, 10) + parseInt(numeroCriancas, 10);
-      const resumo = {
-        nomeEvento: nome,
-        localidade: localidade,
-        numeroAdultos: numeroAdultos,
-        numeroCriancas: numeroCriancas,
-        tipoEvento: tiposEvento.find((tipo) => tipo.id === tipoEvento)?.nome || 'Evento',
-        itens: itensEvento.map(item => ({
-          nome: item.nome,
-          quantidadeTotal: (item.quantidadePorPessoa * totalPessoas).toFixed(2)
-        }))
-      };
-
-      setResumoEvento(resumo); // Armazena o resumo do evento
-      setLoading(false);
-      Alert.alert('Sucesso', 'Evento criado com sucesso!');
+      const response = await axios.post(`${BASE_URL}/Evento`, eventoData);
+      setItensCalculados(response.data.itensCalculados);
+      Alert.alert("Sucesso", "Evento criado com sucesso!");
     } catch (error) {
-      Alert.alert('Erro', 'Não foi possível criar o evento.');
-      setLoading(false);
+      if (axios.isAxiosError(error) && error.response) {
+        showAlertModal(`Não foi possível criar o evento: ${JSON.stringify(error.response.data)}`);
+      } else {
+        showAlertModal("Ocorreu um erro inesperado ao tentar criar o evento.");
+      }
     }
   };
 
@@ -96,15 +97,12 @@ export default function CriarEventos() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Criar Novo Evento</Text>
 
-      {/* Nome do evento */}
       <TextInput
         style={styles.input}
         placeholder="Nome do evento"
         value={nome}
         onChangeText={setNome}
       />
-
-      {/* Localidade */}
       <TextInput
         style={styles.input}
         placeholder="Localidade"
@@ -112,7 +110,29 @@ export default function CriarEventos() {
         onChangeText={setLocalidade}
       />
 
-      {/* Número de adultos */}
+      {Platform.OS === 'web' ? (
+        <input
+          style={{ ...styles.input, height: 40 }}
+          type="date"
+          value={data.toISOString().split('T')[0]}
+          onChange={(e) => setData(new Date(e.target.value))}
+        />
+      ) : (
+        <>
+          <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.input}>
+            <Text>{data.toLocaleDateString()}</Text>
+          </TouchableOpacity>
+          {showDatePicker && (
+            <DateTimePicker
+              value={data}
+              mode="date"
+              display="default"
+              onChange={handleDateChange}
+            />
+          )}
+        </>
+      )}
+
       <TextInput
         style={styles.input}
         placeholder="Número de adultos"
@@ -120,8 +140,6 @@ export default function CriarEventos() {
         value={numeroAdultos}
         onChangeText={setNumeroAdultos}
       />
-
-      {/* Número de crianças */}
       <TextInput
         style={styles.input}
         placeholder="Número de crianças"
@@ -130,45 +148,48 @@ export default function CriarEventos() {
         onChangeText={setNumeroCriancas}
       />
 
-      {/* Tipo de evento */}
       <View style={styles.pickerContainer}>
-        {loadingTiposEvento ? (
-          <Text>Carregando tipos de evento...</Text>
-        ) : (
-          <Picker
-            selectedValue={tipoEvento}
-            onValueChange={handleTipoEventoChange} // Chama a função para buscar os itens ao selecionar um tipo de evento
-            style={styles.picker}
-          >
-            <Picker.Item label="Selecione o tipo de evento" value="" />
-            {tiposEvento.map((tipo) => (
-              <Picker.Item key={tipo.id} label={tipo.nome} value={tipo.id} />
-            ))}
-          </Picker>
-        )}
+        <Picker
+          selectedValue={tipoEvento}
+          onValueChange={setTipoEvento}
+          style={styles.picker}
+        >
+          <Picker.Item label="Selecione o tipo de evento" value="" />
+          {tiposEvento.map((tipo) => (
+            <Picker.Item key={tipo.id} label={tipo.nome} value={tipo.id} />
+          ))}
+        </Picker>
       </View>
 
-      {/* Botão de criar evento */}
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleCreateEvento}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>{loading ? 'Criando...' : 'Criar Evento'}</Text>
+      <TouchableOpacity style={styles.button} onPress={handleCreateEvento}>
+        <Text style={styles.buttonText}>Criar Evento</Text>
       </TouchableOpacity>
 
-      {/* Exibir resumo do evento */}
-      {resumoEvento && (
+      <TouchableOpacity style={styles.button} onPress={() => router.push('/eventos')}>
+        <Text style={styles.buttonText}>Voltar para Eventos</Text>
+      </TouchableOpacity>
+
+      {/* Modal de Alerta */}
+      <Modal
+        transparent={true}
+        visible={modalVisible}
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalMessage}>{modalMessage}</Text>
+            <Button title="Fechar" onPress={() => setModalVisible(false)} />
+          </View>
+        </View>
+      </Modal>
+
+      {itensCalculados.length > 0 && (
         <View style={styles.resumoContainer}>
-          <Text style={styles.resumoTitle}>{resumoEvento.nomeEvento}</Text>
-          <Text>Localidade: {resumoEvento.localidade}</Text>
-          <Text>Adultos: {resumoEvento.numeroAdultos}</Text>
-          <Text>Crianças: {resumoEvento.numeroCriancas}</Text>
-          <Text>Tipo de Evento: {resumoEvento.tipoEvento}</Text>
-          <Text style={styles.resumoSubTitle}>Itens do Evento:</Text>
-          {resumoEvento.itens.map((item, index) => (
+          <Text style={styles.resumoTitle}>Itens Calculados</Text>
+          {itensCalculados.map((item, index) => (
             <Text key={index} style={styles.itemText}>
-              {item.nome} - {item.quantidadeTotal}
+              {item.itemNome} - {item.quantidade}
             </Text>
           ))}
         </View>
@@ -216,6 +237,25 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#fff',
   },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  modalContent: {
+    width: '80%',
+    padding: 20,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  modalMessage: {
+    fontSize: 18,
+    textAlign: "center",
+    marginBottom: 20,
+    color: "#333",
+  },
   resumoContainer: {
     marginTop: 30,
     padding: 20,
@@ -226,11 +266,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 10,
-  },
-  resumoSubTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: 10,
   },
   itemText: {
     fontSize: 16,

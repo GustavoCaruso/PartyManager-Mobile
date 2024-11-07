@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 
 // Definindo o tipo para o estado do usuário
 interface User {
@@ -26,14 +26,33 @@ interface UserProviderProps {
 
 // Criando o Provider
 export default function UserProvider({ children }: UserProviderProps) {
-  const [user, setUser] = useState<User>({
-    logado: false,
+  const [user, setUser] = useState<User>(() => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      return storedUser ? JSON.parse(storedUser) : { logado: false };
+    } catch (error) {
+      console.error("Erro ao carregar o usuário do localStorage:", error);
+      return { logado: false };
+    }
   });
+
+  // Salva o usuário no localStorage sempre que ele for atualizado
+  useEffect(() => {
+    try {
+      if (user.logado) {
+        localStorage.setItem('user', JSON.stringify(user));
+      } else {
+        localStorage.removeItem('user'); // Remove o usuário se ele estiver deslogado
+      }
+    } catch (error) {
+      console.error("Erro ao salvar o usuário no localStorage:", error);
+    }
+  }, [user]);
 
   // Função para logout
   const logout = () => {
     setUser({ logado: false });
-    localStorage.removeItem('token'); // Limpar token do localStorage
+    localStorage.removeItem('user'); // Limpar usuário do localStorage
   };
 
   return (
@@ -52,6 +71,5 @@ export function useUser() {
     throw new Error('useUser deve ser usado dentro de um UserProvider');
   }
 
-  const { user, setUser, logout } = context;
-  return { user, setUser, logout };
+  return context;
 }

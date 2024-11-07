@@ -1,68 +1,69 @@
-import { Text, View, TouchableOpacity, StyleSheet, TextInput, Image, Alert } from "react-native";
-import { router } from "expo-router";
-import { useState } from "react";
-import axios from 'axios';
+import React, { useState } from "react";
+import { Text, View, TouchableOpacity, StyleSheet, TextInput, Image, Modal, Button } from "react-native";
+import { useRouter } from "expo-router";
 import { useUser } from "./context/userContext";
+import SegurancaService from "./service/segurancaService";
 
 export default function Index() {
-  const { setUser } = useUser(); // Pegar a função setUser para salvar os dados do usuário
+  const { setUser } = useUser();  
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalMessage, setModalMessage] = useState("");
+  const [modalType, setModalType] = useState<"success" | "error">("success");
 
-  // Função de login sem validação de frontend
+  const seguranca_service = new SegurancaService();
+  const router = useRouter();
+
+  const showModal = (message: string, type: "success" | "error") => {
+    setModalMessage(message);
+    setModalType(type);
+    setModalVisible(true);
+  };
+
+  // Função de login
   const login = async () => {
     try {
-      const response = await axios.post('http://ggustac-002-site2.htempurl.com/api/Seguranca/login', {
-        email,
-        senha
-      });
+      const response = await seguranca_service.login({ email, senha });
 
       if (response.status === 200) {
         const { token, nomeUsuario, id } = response.data;
 
-        // Atualiza o estado do usuário com as informações retornadas
         setUser({
           nomeUsuario: nomeUsuario || "N/A",
-          email: email || "N/A",  // Armazena o email para usar em outras partes do app
+          email: email || "N/A", 
           logado: true,
           id: id || 0,
           token: token || "",
         });
 
-        Alert.alert("Login bem-sucedido!");
-        router.push('/(tabs)/perfil');  // Redireciona para a tela de perfil
+        showModal("Login bem-sucedido!", "success");
+        setTimeout(() => {
+          setModalVisible(false);
+          router.push('/(tabs)/eventos');
+        }, 1500);
       } else {
-        Alert.alert("Erro", "Email ou senha incorretos.");
+        showModal("Email ou senha incorretos.", "error");
       }
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        if (error.response && error.response.status === 409) {
-          // Email já existe
-          Alert.alert("Erro", "Já existe um usuário com este email.");
-        } else {
-          console.log("Erro no login:", error.response?.data || error.message);
-          Alert.alert("Erro", "Não foi possível fazer login. Verifique suas credenciais.");
-        }
+    } catch (error: any) {
+      if (error.response && error.response.status === 409) {
+        showModal("Já existe um usuário com este email.", "error");
       } else {
-        console.log("Erro desconhecido:", error);
-        Alert.alert("Erro", "Ocorreu um erro inesperado.");
+        console.log("Erro no login:", error.response?.data || error.message);
+        showModal("Não foi possível fazer login. Verifique suas credenciais.", "error");
       }
     }
   };
 
-  // Função para redirecionar para a tela de cadastro
   const cadastro = () => {
     router.push('/cadastro');
   };
 
   return (
     <View style={styles.container}>
-      {/* Logo */}
       <Image source={require('../assets/party-manager-logo.png')} style={styles.logo} />
-
       <Text style={styles.title}>Acesse sua conta</Text>
 
-      {/* Campo de email */}
       <TextInput
         style={styles.input}
         placeholder="Digite seu e-mail"
@@ -72,7 +73,6 @@ export default function Index() {
         autoCapitalize="none"
       />
 
-      {/* Campo de senha */}
       <TextInput
         style={styles.input}
         placeholder="Digite sua senha"
@@ -82,22 +82,36 @@ export default function Index() {
         autoCapitalize="none"
       />
 
-      {/* Botão de Login */}
       <TouchableOpacity style={styles.loginButton} onPress={login}>
         <Text style={styles.loginButtonText}>Entrar</Text>
       </TouchableOpacity>
 
-      {/* Separador */}
       <View style={styles.dividerContainer}>
         <View style={styles.divider} />
         <Text style={styles.orText}>ou</Text>
         <View style={styles.divider} />
       </View>
 
-      {/* Botão de Cadastro */}
       <TouchableOpacity style={styles.registerButton} onPress={cadastro}>
-        <Text style={styles.registerButtonText}>Cadastra-se</Text>
+        <Text style={styles.registerButtonText}>Cadastrar-se</Text>
       </TouchableOpacity>
+
+      {/* Modal para mensagens */}
+      <Modal
+        transparent={true}
+        visible={modalVisible}
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={[styles.modalMessage, modalType === "success" ? styles.successText : styles.errorText]}>
+              {modalMessage}
+            </Text>
+            <Button title="Fechar" onPress={() => setModalVisible(false)} />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -164,5 +178,29 @@ const styles = StyleSheet.create({
   registerButtonText: {
     fontSize: 18,
     color: '#fff',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  modalContent: {
+    width: '80%',
+    padding: 20,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  modalMessage: {
+    fontSize: 18,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  successText: {
+    color: "#4CAF50",
+  },
+  errorText: {
+    color: "#F44336",
   }
 });
