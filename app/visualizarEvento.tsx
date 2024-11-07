@@ -1,8 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Button, StyleSheet, ScrollView, Share, Alert } from "react-native";
-import { useRoute, useNavigation } from "@react-navigation/native";
+import { useRoute, useNavigation, RouteProp, NavigationProp } from "@react-navigation/native";
 import axios from "axios";
 import { useUser } from "./context/userContext";
+
+// Define os tipos para as rotas e parâmetros esperados
+type RootStackParamList = {
+  visualizarEvento: { id: number };
+  edicaoEvento: { id: number; idTipoEvento: number };
+};
+
+// Especifica o tipo para a rota 'visualizarEvento'
+type VisualizarEventoRouteProp = RouteProp<RootStackParamList, 'visualizarEvento'>;
+type EdicaoEventoNavigationProp = NavigationProp<RootStackParamList, 'edicaoEvento'>;
 
 interface ItemCalculado {
   itemNome: string;
@@ -24,11 +34,12 @@ interface Evento {
 export default function VisualizarEvento() {
   const [evento, setEvento] = useState<Evento | null>(null);
   const [nomeTipoEvento, setNomeTipoEvento] = useState<string>("");
-  const route = useRoute();
-  const navigation = useNavigation();
+
+  const route = useRoute<VisualizarEventoRouteProp>();
+  const navigation = useNavigation<EdicaoEventoNavigationProp>();
   const { user } = useUser();
 
-  const { id } = route.params as { id: number };
+  const { id } = route.params;
 
   useEffect(() => {
     const fetchEvento = async () => {
@@ -86,26 +97,32 @@ export default function VisualizarEvento() {
   };
 
   if (!evento) {
-    return <Text>Carregando detalhes do evento...</Text>;
+    return (
+      <View style={styles.loadingContainer}>
+        <Text>Carregando detalhes do evento...</Text>
+      </View>
+    );
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Detalhes do Evento</Text>
-      <Text style={styles.detail}>Nome: {evento.nome}</Text>
-      <Text style={styles.detail}>Tipo de Evento: {nomeTipoEvento || evento.tipoEvento}</Text>
-      <Text style={styles.detail}>Data: {new Date(evento.data).toLocaleDateString()}</Text>
-      <Text style={styles.detail}>Local: {evento.localidade}</Text>
-      <Text style={styles.detail}>Adultos: {evento.numeroAdultos}</Text>
-      <Text style={styles.detail}>Crianças: {evento.numeroCriancas}</Text>
+    <View style={styles.outerContainer}>
+      <ScrollView contentContainerStyle={styles.scrollContentContainer}>
+        <Text style={styles.title}>Detalhes do Evento</Text>
+        <Text style={styles.detail}>Nome: {evento.nome}</Text>
+        <Text style={styles.detail}>Tipo de Evento: {nomeTipoEvento || evento.tipoEvento}</Text>
+        <Text style={styles.detail}>Data: {new Date(evento.data).toLocaleDateString()}</Text>
+        <Text style={styles.detail}>Local: {evento.localidade}</Text>
+        <Text style={styles.detail}>Adultos: {evento.numeroAdultos}</Text>
+        <Text style={styles.detail}>Crianças: {evento.numeroCriancas}</Text>
 
-      <Text style={styles.subTitle}>Itens Calculados</Text>
-      {evento.itensCalculados.map((item, index) => (
-        <View key={index} style={styles.itemContainer}>
-          <Text style={styles.itemText}>{item.itemNome}</Text>
-          <Text style={styles.itemText}>Quantidade: {item.quantidade}</Text>
-        </View>
-      ))}
+        <Text style={styles.subTitle}>Itens Calculados</Text>
+        {evento.itensCalculados.map((item, index) => (
+          <View key={index} style={styles.itemContainer}>
+            <Text style={styles.itemText}>{item.itemNome}</Text>
+            <Text style={styles.itemText}>Quantidade: {item.quantidade}</Text>
+          </View>
+        ))}
+      </ScrollView>
 
       <View style={styles.buttonContainer}>
         <Button title="Voltar" onPress={() => navigation.goBack()} />
@@ -113,17 +130,25 @@ export default function VisualizarEvento() {
           title="Editar" 
           onPress={() => navigation.navigate("edicaoEvento", { id: evento.id, idTipoEvento: evento.idTipoEvento })}
         />
-        <Button title="Compartilhar" onPress={compartilharEvento} /> {/* Botão de compartilhamento */}
+        <Button title="Compartilhar" onPress={compartilharEvento} />
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  outerContainer: {
     flex: 1,
-    padding: 20,
     backgroundColor: '#fff',
+  },
+  scrollContentContainer: {
+    flexGrow: 1,
+    padding: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   title: {
     fontSize: 24,
@@ -153,6 +178,7 @@ const styles = StyleSheet.create({
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
+    padding: 20,
+    backgroundColor: '#f8f8f8',
   },
 });
